@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'services/llm_service.dart';
 
-void main() => runApp(const PocketMindApp());
+void main() => runApp(const OrbitApp());
 
-class PocketMindApp extends StatelessWidget {
-  const PocketMindApp({super.key});
+class OrbitApp extends StatelessWidget {
+  const OrbitApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +15,7 @@ class PocketMindApp extends StatelessWidget {
     );
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'PocketMind',
+      title: 'Orbit',
       theme: ThemeData(
         colorScheme: scheme,
         useMaterial3: true,
@@ -144,10 +144,7 @@ class _ChatScreenState extends State<ChatScreen> {
             const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'PocketMind',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
+                Text('Orbit', style: TextStyle(fontWeight: FontWeight.w700)),
                 Text(
                   'Private · runs on your phone',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.normal),
@@ -194,7 +191,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => sendMessage(),
                       decoration: const InputDecoration(
-                        hintText: 'Ask PocketMind anything…',
+                        hintText: 'Ask Orbit anything…',
                         prefixIcon: Icon(Icons.chat_bubble_outline, size: 20),
                         contentPadding: EdgeInsets.symmetric(
                           horizontal: 18,
