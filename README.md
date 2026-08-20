@@ -1,21 +1,33 @@
 # Orbit
 
-Orbit is a fully offline Flutter Android chatbot powered by Qwen2.5-1.5B-Instruct in GGUF format. Inference runs locally through the llama.cpp Android native runtime. No account, server, API, database, Python, or internet connection is required at runtime.
+Orbit is a fully offline Flutter Android chatbot powered by a local llama.cpp-compatible GGUF model. No account, server, API, database, Python, or internet connection is required at runtime.
 
 ## Requirements
 
-- Android ARM64 phone (the tested device is a Motorola Edge 50 Pro)
+- Android ARM64 phone
 - Flutter SDK and Android SDK/NDK/CMake for building
-- A Qwen GGUF model on the phone
+- A text-generation GGUF model on the phone
 - USB debugging enabled for `flutter run` or `adb install`
 
-The app currently expects this exact model path on the phone:
+On first launch, tap **Select GGUF model** and choose a `.gguf` file using Android's document picker. Orbit copies the model into app-private storage and loads it from there. The model is not bundled into the APK, and a previously selected model is reused automatically on later launches.
 
-```text
-/storage/emulated/0/Download/offline_ai/qwen2.5-1.5b-instruct-q4_k_m.gguf
-```
+## Model selection
 
-On first launch, Orbit copies the model into app-private storage and loads it from there. The model is not bundled into the APK, so the APK remains reasonably sized.
+Orbit accepts llama.cpp-compatible GGUF files, but the model should be a text-generation or instruction-tuned model. Vision, audio, embedding, and other non-chat GGUF files are not supported by the current text-only interface.
+
+For a typical Android ARM64 phone, these are the practical choices:
+
+| Model | Recommended quantization | Use case |
+| --- | --- | --- |
+| Qwen2.5-0.5B-Instruct | `Q4_K_M` | Fastest response and lowest memory use; best default for this phone |
+| Qwen2.5-1.5B-Instruct | `Q4_K_M` | Better answers and reasoning, but slower |
+| Either model | `Q2_K` | Smallest file, but noticeably lower quality; use only if storage or memory is limited |
+
+Start with `Qwen2.5-0.5B-Instruct-Q4_K_M.gguf` if response speed is the priority. Use `Qwen2.5-1.5B-Instruct-Q4_K_M.gguf` when answer quality matters more. Choosing a smaller model generally improves speed more than reducing the same model from Q4 to Q2. Q2_K can hurt coding, reasoning, and factual answers. Avoid 7B-or-larger models on a phone because they require substantially more memory and usually generate slowly.
+
+Download models from a trusted source, preferably the model publisher's official Hugging Face repository. The official [Qwen2.5-0.5B GGUF repository](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF) provides the `Q4_K_M` file.
+
+After downloading a model, copy it anywhere accessible to Android's file picker, then select it inside Orbit. The app copies the selected file into private storage; it does not depend on a hardcoded shared-storage path.
 
 ## Build and run
 
@@ -45,56 +57,48 @@ Then open the app named **Orbit**.
 
 ## Put the model on the phone
 
-Create the directory and copy the model with ADB:
+You can place a model anywhere visible in the Android file picker. For example, with ADB:
 
 ```powershell
 adb shell mkdir -p /sdcard/Download/offline_ai
-adb push qwen2.5-1.5b-instruct-q4_k_m.gguf /sdcard/Download/offline_ai/
+adb push qwen2.5-0.5b-instruct-q4_k_m.gguf /sdcard/Download/offline_ai/
 ```
 
-The model is approximately 1.1 GB. Keep several hundred megabytes of additional free RAM/storage available for the context and KV cache.
+The 1.5B Q4_K_M model is approximately 1.1 GB. Keep several hundred megabytes of additional free RAM and storage available for the context and KV cache.
 
 ## How the app works
 
 1. Flutter displays the chat UI.
-2. Android copies the model from `Download/offline_ai` into `files/models`.
-3. The checked-in llama.cpp Android native runtime loads the GGUF model.
+2. Android copies the model selected in the document picker into `files/models`.
+3. The llama.cpp Android native runtime loads the GGUF model.
 4. Generation runs on a background coroutine/thread.
 5. Native tokens stream to Flutter through an EventChannel.
 6. Native model resources are released when the Activity is destroyed.
 
-The Android native build includes the ARM64 llama.cpp/ggml CPU backend directly in the APK. This avoids the missing dynamic backend-library problem that can produce errors such as `no backends are loaded` or missing `libmtmd.so`.
+The Android native build includes the ARM64 llama.cpp/ggml CPU backend directly in the APK. This avoids missing dynamic backend-library errors such as `no backends are loaded` or missing `libmtmd.so`.
 
-## Using a custom app icon and splash icon
+## Custom app icon and splash icon
 
-For a 1:1 image, place the source image somewhere in the project, for example:
+For a 1:1 image, place the source image in the project, for example:
 
 ```text
 assets/branding/orbit_icon.png
 ```
 
-The launcher icon needs Android density resources. The easiest approach is to generate Android launcher icons with Flutter's `flutter_launcher_icons` package, then configure it in `pubspec.yaml` and run:
-
-```powershell
-dart run flutter_launcher_icons
-```
-
-This updates the `android/app/src/main/res/mipmap-*` icon files.
-
-The Android launch screen uses:
+Android launcher density resources are stored in `android/app/src/main/res/mipmap-*`. The launch screen uses:
 
 ```text
 android/app/src/main/res/drawable/launch_background.xml
 android/app/src/main/res/drawable-v21/launch_background.xml
 ```
 
-The image itself should be placed in `android/app/src/main/res/drawable-nodpi/orbit_icon.png`, then referenced from the launch background XML. Keep the important artwork centered because Android may crop or mask launcher artwork.
+The splash image is stored at `android/app/src/main/res/drawable-nodpi/orbit_icon.png`. Keep important artwork centered because Android may crop or mask launcher artwork.
 
 ## Troubleshooting
 
 ### Model not found
 
-Verify the filename and path:
+Tap **Select GGUF model** and choose the model again. If using ADB, verify that the file is visible in Downloads:
 
 ```powershell
 adb shell ls -lh /sdcard/Download/offline_ai/
@@ -102,7 +106,7 @@ adb shell ls -lh /sdcard/Download/offline_ai/
 
 ### Model loads slowly
 
-The current Q4_K_M model is CPU-inferred. Startup maps roughly 1 GB of model data and generation speed depends on phone thermals, available RAM, context length, and thread count. A smaller Qwen GGUF or lower context/prediction limit will respond faster.
+The current runtime performs CPU inference. Startup maps the model into memory, while generation speed depends on model size, phone thermals, available RAM, context length, and thread count. Try the Qwen2.5-0.5B-Instruct Q4_K_M model for faster responses.
 
 ### App says no backend is loaded
 
@@ -110,4 +114,4 @@ Rebuild the APK from the project root. The ARM64 APK must contain `libai-chat.so
 
 ### Completely offline behavior
 
-After the model is copied to app-private storage, Orbit does not need network access. Disable Wi-Fi/mobile data to verify offline inference.
+After the model is copied to app-private storage, Orbit does not need network access. Disable Wi-Fi and mobile data to verify offline inference.

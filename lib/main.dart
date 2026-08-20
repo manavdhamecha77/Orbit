@@ -74,7 +74,17 @@ class _ChatScreenState extends State<ChatScreen> {
       await llmService.initialize();
       if (mounted) setState(() => status = 'Ready');
     } catch (e) {
-      if (mounted) setState(() => status = 'Error: $e');
+      if (mounted) setState(() => status = 'Select model');
+    }
+  }
+
+  Future<void> selectModel() async {
+    setState(() => status = 'Loading');
+    try {
+      await llmService.pickModel();
+      if (mounted) setState(() => status = 'Ready');
+    } catch (e) {
+      if (mounted) setState(() => status = 'Select model');
     }
   }
 
@@ -166,7 +176,11 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(
             child: messages.isEmpty
-                ? _Welcome(colors: colors, ready: ready)
+                ? _Welcome(
+                    colors: colors,
+                    ready: ready,
+                    onSelectModel: selectModel,
+                  )
                 : ListView.builder(
                     controller: scrollController,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
@@ -265,7 +279,12 @@ class _StatusPill extends StatelessWidget {
 class _Welcome extends StatelessWidget {
   final ColorScheme colors;
   final bool ready;
-  const _Welcome({required this.colors, required this.ready});
+  final VoidCallback onSelectModel;
+  const _Welcome({
+    required this.colors,
+    required this.ready,
+    required this.onSelectModel,
+  });
 
   @override
   Widget build(BuildContext context) => Center(
@@ -284,10 +303,18 @@ class _Welcome extends StatelessWidget {
           Text(
             ready
                 ? 'Ask a question to start a completely offline conversation.'
-                : 'Loading the local model…',
+                : 'Choose a GGUF model stored on your phone to begin.',
             textAlign: TextAlign.center,
             style: TextStyle(color: colors.onSurfaceVariant),
           ),
+          if (!ready) ...[
+            const SizedBox(height: 22),
+            FilledButton.icon(
+              onPressed: onSelectModel,
+              icon: const Icon(Icons.folder_open),
+              label: const Text('Select GGUF model'),
+            ),
+          ],
         ],
       ),
     ),

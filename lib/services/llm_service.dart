@@ -12,6 +12,10 @@ class LlmService {
     await _channel.invokeMethod('loadModel');
   }
 
+  Future<void> pickModel() async {
+    await _channel.invokeMethod('pickModel');
+  }
+
   Stream<String> generate(String prompt) async* {
     final controller = StreamController<String>();
     final subscription = _streamChannel

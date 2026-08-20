@@ -1,6 +1,7 @@
 package com.example.offline_ai
 
-import android.os.Environment
+import android.content.Intent
+import android.net.Uri
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -11,7 +12,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -19,6 +19,8 @@ class MainActivity : FlutterActivity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var engine: InferenceEngine? = null
     private var sink: EventChannel.EventSink? = null
+    private var pendingPickResult: MethodChannel.Result? = null
+    private val pickModelRequestCode = 4107
     private val generating = AtomicBoolean(false)
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -26,6 +28,7 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "offline_ai/llm").setMethodCallHandler { call, result ->
             when (call.method) {
                 "loadModel" -> loadModel(result)
+                "pickModel" -> pickModel(result)
                 "generate" -> generate(call.argument<String>("prompt") ?: "", result)
                 else -> result.notImplemented()
             }
@@ -38,16 +41,54 @@ class MainActivity : FlutterActivity() {
 
     private fun loadModel(result: MethodChannel.Result) = scope.launch {
         try {
-            val model = withContext(Dispatchers.IO) { copyModelToPrivateStorage() }
-            val loadedEngine = withContext(Dispatchers.IO) {
-                AiChat.getInferenceEngine(applicationContext).also { created ->
-                    created.state.first { it is InferenceEngine.State.Initialized }
-                }
-            }
-            engine = loadedEngine
-            withContext(Dispatchers.IO) { loadedEngine.loadModel(model.absolutePath) }
-            result.success("ready")
+            val model = withContext(Dispatchers.IO) { privateModelFile() }
+            loadPrivateModel(model, result)
         } catch (t: Throwable) { result.error("MODEL_LOAD_FAILED", t.message ?: t.toString(), null) }
+    }
+
+    private fun pickModel(result: MethodChannel.Result) {
+        if (pendingPickResult != null) {
+            result.error("BUSY", "Another model selection is already open", null)
+            return
+        }
+        pendingPickResult = result
+        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/octet-stream"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/octet-stream", "application/*", "*/*"))
+        }, pickModelRequestCode)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != pickModelRequestCode) return
+        val result = pendingPickResult
+        pendingPickResult = null
+        if (result == null) return
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) {
+            result.error("MODEL_SELECTION_CANCELLED", "No model was selected", null)
+            return
+        }
+        scope.launch {
+            try {
+                val model = withContext(Dispatchers.IO) { copyUriToPrivateStorage(uri) }
+                loadPrivateModel(model, result)
+            } catch (t: Throwable) {
+                result.error("MODEL_LOAD_FAILED", t.message ?: t.toString(), null)
+            }
+        }
+    }
+
+    private suspend fun loadPrivateModel(model: File, result: MethodChannel.Result) {
+        val loadedEngine = withContext(Dispatchers.IO) {
+            AiChat.getInferenceEngine(applicationContext).also { created ->
+                created.state.first { it is InferenceEngine.State.Initialized }
+            }
+        }
+        engine = loadedEngine
+        withContext(Dispatchers.IO) { loadedEngine.loadModel(model.absolutePath) }
+        result.success("ready")
     }
 
     private fun generate(prompt: String, result: MethodChannel.Result) {
@@ -70,13 +111,22 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun copyModelToPrivateStorage(): File {
-        val destination = File(File(filesDir, "models"), "qwen2.5-1.5b-instruct-q4_k_m.gguf")
-        if (destination.isFile && destination.length() > 0) return destination
-        val source = File(Environment.getExternalStorageDirectory(), "Download/offline_ai/qwen2.5-1.5b-instruct-q4_k_m.gguf")
-        require(source.isFile && source.canRead()) { "Model not readable at ${source.absolutePath}" }
+    private fun privateModelFile(): File {
+        val modelsDir = File(filesDir, "models")
+        val selected = File(modelsDir, "selected-model.gguf")
+        val legacy = File(modelsDir, "qwen2.5-1.5b-instruct-q4_k_m.gguf")
+        val destination = if (selected.isFile && selected.length() > 0) selected else legacy
+        require(destination.isFile && destination.length() > 0) { "No model selected yet" }
+        return destination
+    }
+
+    private fun copyUriToPrivateStorage(uri: Uri): File {
+        val destination = File(File(filesDir, "models"), "selected-model.gguf")
         destination.parentFile!!.mkdirs()
-        FileInputStream(source).use { input -> FileOutputStream(destination).use { output -> input.copyTo(output) } }
+        contentResolver.openInputStream(uri).use { input ->
+            requireNotNull(input) { "Could not open the selected model" }
+            FileOutputStream(destination).use { output -> input.copyTo(output) }
+        }
         require(destination.length() > 0) { "Copied model is empty" }
         return destination
     }
