@@ -19,11 +19,11 @@ For a typical Android ARM64 phone, these are the practical choices:
 
 | Model | Recommended quantization | Use case |
 | --- | --- | --- |
-| Qwen2.5-0.5B-Instruct | `Q4_K_M` | Fastest response and lowest memory use; best default for this phone |
-| Qwen2.5-1.5B-Instruct | `Q4_K_M` | Better answers and reasoning, but slower |
+| Qwen2.5-0.5B-Instruct | `Q4_K_M` | Compact model with low memory use |
+| Qwen2.5-1.5B-Instruct | `Q4_K_M` | Better answers and reasoning |
 | Either model | `Q2_K` | Smallest file, but noticeably lower quality; use only if storage or memory is limited |
 
-Start with `Qwen2.5-0.5B-Instruct-Q4_K_M.gguf` if response speed is the priority. Use `Qwen2.5-1.5B-Instruct-Q4_K_M.gguf` when answer quality matters more. Choosing a smaller model generally improves speed more than reducing the same model from Q4 to Q2. Q2_K can hurt coding, reasoning, and factual answers. Avoid 7B-or-larger models on a phone because they require substantially more memory and usually generate slowly.
+Start with `Qwen2.5-0.5B-Instruct-Q4_K_M.gguf` for a compact model. Use `Qwen2.5-1.5B-Instruct-Q4_K_M.gguf` when answer quality matters more. Q2_K can hurt coding, reasoning, and factual answers. Avoid 7B-or-larger models on a phone because they require substantially more memory.
 
 Download models from a trusted source, preferably the model publisher's official Hugging Face repository. The official [Qwen2.5-0.5B GGUF repository](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF) provides the `Q4_K_M` file.
 
@@ -103,10 +103,6 @@ Tap **Select GGUF model** and choose the model again. If using ADB, verify that 
 ```powershell
 adb shell ls -lh /sdcard/Download/offline_ai/
 ```
-
-### Model loads slowly
-
-The current runtime performs CPU inference. Startup maps the model into memory, while generation speed depends on model size, phone thermals, available RAM, context length, and thread count. Try the Qwen2.5-0.5B-Instruct Q4_K_M model for faster responses.
 
 ### App says no backend is loaded
 
