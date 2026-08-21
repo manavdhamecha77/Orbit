@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:gpt_markdown/gpt_markdown.dart';
 
 import 'services/llm_service.dart';
 
@@ -49,6 +50,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Message> messages = <Message>[];
   String status = 'Loading';
   bool generating = false;
+  String activeModelName = 'No model loaded';
 
   @override
   void initState() {
@@ -71,18 +73,33 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> loadModel() async {
     try {
-      await llmService.initialize();
-      if (mounted) setState(() => status = 'Ready');
+      final modelName = await llmService.initialize();
+      if (mounted) {
+        setState(() {
+          status = 'Ready';
+          activeModelName = modelName;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() => status = 'Select model');
+      if (mounted) {
+        setState(() {
+          status = 'Select model';
+          activeModelName = 'No model loaded';
+        });
+      }
     }
   }
 
   Future<void> selectModel() async {
     setState(() => status = 'Loading');
     try {
-      await llmService.pickModel();
-      if (mounted) setState(() => status = 'Ready');
+      final modelName = await llmService.pickModel();
+      if (mounted) {
+        setState(() {
+          status = 'Ready';
+          activeModelName = modelName;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => status = 'Select model');
     }
@@ -132,6 +149,131 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> stopGeneration() async {
+    await llmService.stopGeneration();
+    if (mounted) {
+      setState(() {
+        generating = false;
+        status = 'Ready';
+      });
+    }
+  }
+
+  void showModelModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A232E).withValues(alpha: 0.95),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+            border: Border(
+              top: BorderSide(
+                color: Colors.white.withValues(alpha: 0.12),
+                width: 1.0,
+              ),
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Local AI Model',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFE6EDF3),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Active Model',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF7A8B9C),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          activeModelName,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFFE2EAF1),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFC0CDDB),
+                            side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text('Close'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            selectModel();
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFE2E9F0),
+                            foregroundColor: const Color(0xFF131922),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text('Change Model'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   String get statusLabel => status.startsWith('Error') ? 'Error' : status;
 
   @override
@@ -147,47 +289,26 @@ class _ChatScreenState extends State<ChatScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         titleSpacing: 20,
-        title: Row(
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  width: 1,
-                ),
-              ),
-              child: const Icon(
-                Icons.auto_awesome,
-                color: Color(0xFF9BB0C5),
-                size: 18,
+            Text(
+              'Orbit',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE6EDF3),
+                letterSpacing: -0.2,
               ),
             ),
-            const SizedBox(width: 12),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Orbit',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFE6EDF3),
-                    letterSpacing: -0.2,
-                  ),
-                ),
-                Text(
-                  'Private · runs on your phone',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF7A8B9C),
-                  ),
-                ),
-              ],
+            Text(
+              'Private · runs on your phone',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w400,
+                color: Color(0xFF7A8B9C),
+              ),
             ),
           ],
         ),
@@ -198,7 +319,7 @@ class _ChatScreenState extends State<ChatScreen> {
               child: _StatusPill(
                 label: statusLabel,
                 generating: generating,
-                onTap: status != 'Ready' && !generating ? selectModel : null,
+                onTap: showModelModal,
               ),
             ),
           ),
@@ -238,15 +359,16 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
               ),
 
-              // Glassmorphism Chat Box
+              // Single-Line Glassmorphism Chat Box
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
                 child: _FrostedChatBox(
                   controller: controller,
-                  enabled: isReady && !generating,
+                  enabled: isReady || generating,
                   canSend: canSend,
                   generating: generating,
                   onSend: sendMessage,
+                  onStop: stopGeneration,
                 ),
               ),
             ],
@@ -263,6 +385,7 @@ class _FrostedChatBox extends StatelessWidget {
   final bool canSend;
   final bool generating;
   final VoidCallback onSend;
+  final VoidCallback onStop;
 
   const _FrostedChatBox({
     required this.controller,
@@ -270,6 +393,7 @@ class _FrostedChatBox extends StatelessWidget {
     required this.canSend,
     required this.generating,
     required this.onSend,
+    required this.onStop,
   });
 
   @override
@@ -296,7 +420,7 @@ class _FrostedChatBox extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(18, 14, 12, 10),
+            padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
             decoration: BoxDecoration(
               color: const Color(0xFF1E2836).withValues(alpha: 0.65),
               borderRadius: BorderRadius.circular(24),
@@ -305,47 +429,42 @@ class _FrostedChatBox extends StatelessWidget {
                 width: 1.0,
               ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Row(
               children: [
-                TextField(
-                  controller: controller,
-                  enabled: enabled,
-                  minLines: 1,
-                  maxLines: 5,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) {
-                    if (canSend) onSend();
-                  },
-                  style: const TextStyle(
-                    color: Color(0xFFE6EDF3),
-                    fontSize: 15,
-                    height: 1.4,
-                  ),
-                  cursorColor: const Color(0xFFA0B3C6),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    hintText: 'Ask me anything...',
-                    hintStyle: TextStyle(
-                      color: Color(0xFF788899),
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    enabled: enabled && !generating,
+                    maxLines: 1,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) {
+                      if (canSend) onSend();
+                    },
+                    style: const TextStyle(
+                      color: Color(0xFFE6EDF3),
                       fontSize: 15,
-                      fontWeight: FontWeight.w400,
+                      height: 1.4,
                     ),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
+                    cursorColor: const Color(0xFFA0B3C6),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      hintText: 'Ask me anything...',
+                      hintStyle: TextStyle(
+                        color: Color(0xFF788899),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 10),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    _CircularSendButton(
-                      canSend: canSend,
-                      generating: generating,
-                      onPressed: canSend ? onSend : null,
-                    ),
-                  ],
+                const SizedBox(width: 10),
+                _CircularActionButton(
+                  canSend: canSend,
+                  generating: generating,
+                  onSend: onSend,
+                  onStop: onStop,
                 ),
               ],
             ),
@@ -356,15 +475,17 @@ class _FrostedChatBox extends StatelessWidget {
   }
 }
 
-class _CircularSendButton extends StatelessWidget {
+class _CircularActionButton extends StatelessWidget {
   final bool canSend;
   final bool generating;
-  final VoidCallback? onPressed;
+  final VoidCallback onSend;
+  final VoidCallback onStop;
 
-  const _CircularSendButton({
+  const _CircularActionButton({
     required this.canSend,
     required this.generating,
-    required this.onPressed,
+    required this.onSend,
+    required this.onStop,
   });
 
   @override
@@ -372,10 +493,12 @@ class _CircularSendButton extends StatelessWidget {
     const activeBg = Color(0xFFDDE5ED);
     final disabledBg = Colors.white.withValues(alpha: 0.08);
 
+    final showStop = generating;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onPressed,
+        onTap: showStop ? onStop : (canSend ? onSend : null),
         borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
@@ -383,14 +506,14 @@ class _CircularSendButton extends StatelessWidget {
           height: 36,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: canSend ? activeBg : disabledBg,
+            color: (showStop || canSend) ? activeBg : disabledBg,
             border: Border.all(
-              color: canSend
+              color: (showStop || canSend)
                   ? Colors.white.withValues(alpha: 0.3)
                   : Colors.white.withValues(alpha: 0.08),
               width: 1,
             ),
-            boxShadow: canSend
+            boxShadow: (showStop || canSend)
                 ? [
                     BoxShadow(
                       color: const Color(0xFFB0C4DE).withValues(alpha: 0.25),
@@ -401,14 +524,11 @@ class _CircularSendButton extends StatelessWidget {
                 : null,
           ),
           child: Center(
-            child: generating
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Color(0xFF7E8F9F),
-                    ),
+            child: showStop
+                ? const Icon(
+                    Icons.stop_rounded,
+                    size: 20,
+                    color: Color(0xFF121922),
                   )
                 : Icon(
                     Icons.arrow_upward_rounded,
@@ -519,31 +639,6 @@ class _Welcome extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 68,
-              height: 68,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.04),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF3B4E63).withValues(alpha: 0.16),
-                    blurRadius: 24,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.auto_awesome,
-                size: 30,
-                color: Color(0xFFA2B6CA),
-              ),
-            ),
-            const SizedBox(height: 22),
             const Text(
               'Your private AI companion',
               textAlign: TextAlign.center,
@@ -655,14 +750,13 @@ class _MessageBubble extends StatelessWidget {
             ),
           ],
         ),
-        child: Text(
+        child: GptMarkdown(
           message.text.isEmpty ? '…' : message.text,
           style: TextStyle(
             color: message.isUser
                 ? const Color(0xFFF0F4F8)
                 : const Color(0xFFD3DDE6),
             fontSize: 14.5,
-            height: 1.42,
           ),
         ),
       ),

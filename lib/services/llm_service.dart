@@ -8,12 +8,18 @@ class LlmService {
     'offline_ai/llm_stream',
   );
 
-  Future<void> initialize() async {
-    await _channel.invokeMethod('loadModel');
+  Future<String> initialize() async {
+    final result = await _channel.invokeMethod<String>('loadModel');
+    return result ?? 'Default Model';
   }
 
-  Future<void> pickModel() async {
-    await _channel.invokeMethod('pickModel');
+  Future<String> pickModel() async {
+    final result = await _channel.invokeMethod<String>('pickModel');
+    return result ?? 'Default Model';
+  }
+
+  Future<void> stopGeneration() async {
+    await _channel.invokeMethod('stopGeneration');
   }
 
   Stream<String> generate(String prompt) async* {
