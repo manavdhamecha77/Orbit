@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import 'services/llm_service.dart';
@@ -9,25 +10,18 @@ class OrbitApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xff65d6c2),
-      brightness: Brightness.dark,
-    );
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Orbit',
       theme: ThemeData(
-        colorScheme: scheme,
+        brightness: Brightness.dark,
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xff101314),
-        appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Color(0xff1b2223),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(24)),
-            borderSide: BorderSide.none,
-          ),
+        scaffoldBackgroundColor: const Color(0xFF0C1015),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFF8BA2B8),
+          surface: Color(0xFF151C26),
+          onSurface: Color(0xFFE6EDF3),
+          onPrimary: Color(0xFF0C1015),
         ),
       ),
       home: const ChatScreen(),
@@ -49,21 +43,27 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final controller = TextEditingController();
-  final scrollController = ScrollController();
-  final llmService = LlmService();
-  final messages = <Message>[];
+  final TextEditingController controller = TextEditingController();
+  final ScrollController scrollController = ScrollController();
+  final LlmService llmService = LlmService();
+  final List<Message> messages = <Message>[];
   String status = 'Loading';
   bool generating = false;
 
   @override
   void initState() {
     super.initState();
+    controller.addListener(_onTextChanged);
     loadModel();
+  }
+
+  void _onTextChanged() {
+    setState(() {});
   }
 
   @override
   void dispose() {
+    controller.removeListener(_onTextChanged);
     controller.dispose();
     scrollController.dispose();
     super.dispose();
@@ -136,28 +136,56 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final ready = status == 'Ready' && !generating;
+    final isReady = status == 'Ready';
+    final hasText = controller.text.trim().isNotEmpty;
+    final canSend = isReady && !generating && hasText;
+
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        titleSpacing: 20,
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: colors.primary.withValues(alpha: .15),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  width: 1,
+                ),
               ),
-              child: Icon(Icons.auto_awesome, color: colors.primary, size: 20),
+              child: const Icon(
+                Icons.auto_awesome,
+                color: Color(0xFF9BB0C5),
+                size: 18,
+              ),
             ),
             const SizedBox(width: 12),
             const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Orbit', style: TextStyle(fontWeight: FontWeight.w700)),
+                Text(
+                  'Orbit',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFE6EDF3),
+                    letterSpacing: -0.2,
+                  ),
+                ),
                 Text(
                   'Private · runs on your phone',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.normal),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF7A8B9C),
+                  ),
                 ),
               ],
             ),
@@ -165,71 +193,232 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.only(right: 18),
             child: Center(
-              child: _StatusPill(label: statusLabel, generating: generating),
-            ),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: messages.isEmpty
-                ? _Welcome(
-                    colors: colors,
-                    ready: ready,
-                    onSelectModel: selectModel,
-                  )
-                : ListView.builder(
-                    controller: scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) =>
-                        _MessageBubble(message: messages[index]),
-                  ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      enabled: ready,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => sendMessage(),
-                      decoration: const InputDecoration(
-                        hintText: 'Ask Orbit anything…',
-                        prefixIcon: Icon(Icons.chat_bubble_outline, size: 20),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 14,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  IconButton.filled(
-                    onPressed: ready ? sendMessage : null,
-                    icon: Icon(
-                      generating ? Icons.hourglass_top : Icons.arrow_upward,
-                    ),
-                    tooltip: 'Send message',
-                    style: IconButton.styleFrom(
-                      padding: const EdgeInsets.all(15),
-                    ),
-                  ),
-                ],
+              child: _StatusPill(
+                label: statusLabel,
+                generating: generating,
+                onTap: status != 'Ready' && !generating ? selectModel : null,
               ),
             ),
           ),
         ],
+      ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0.0, -0.35),
+            radius: 1.25,
+            colors: [
+              Color(0xFF1B2430), // Soft blue-gray center
+              Color(0xFF131922), // Intermediate tone
+              Color(0xFF0B0E13), // Darker edge
+            ],
+            stops: [0.0, 0.55, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Message list or Welcome screen
+              Expanded(
+                child: messages.isEmpty
+                    ? _Welcome(
+                        ready: isReady,
+                        onSelectModel: selectModel,
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) =>
+                            _MessageBubble(message: messages[index]),
+                      ),
+              ),
+
+              // Glassmorphism Chat Box
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+                child: _FrostedChatBox(
+                  controller: controller,
+                  enabled: isReady && !generating,
+                  canSend: canSend,
+                  generating: generating,
+                  onSend: sendMessage,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FrostedChatBox extends StatelessWidget {
+  final TextEditingController controller;
+  final bool enabled;
+  final bool canSend;
+  final bool generating;
+  final VoidCallback onSend;
+
+  const _FrostedChatBox({
+    required this.controller,
+    required this.enabled,
+    required this.canSend,
+    required this.generating,
+    required this.onSend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 24,
+            spreadRadius: 0,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: const Color(0xFF3B4E63).withValues(alpha: 0.12),
+            blurRadius: 16,
+            spreadRadius: -2,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(18, 14, 12, 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E2836).withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+                width: 1.0,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: controller,
+                  enabled: enabled,
+                  minLines: 1,
+                  maxLines: 5,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) {
+                    if (canSend) onSend();
+                  },
+                  style: const TextStyle(
+                    color: Color(0xFFE6EDF3),
+                    fontSize: 15,
+                    height: 1.4,
+                  ),
+                  cursorColor: const Color(0xFFA0B3C6),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    hintText: 'Ask me anything...',
+                    hintStyle: TextStyle(
+                      color: Color(0xFF788899),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _CircularSendButton(
+                      canSend: canSend,
+                      generating: generating,
+                      onPressed: canSend ? onSend : null,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CircularSendButton extends StatelessWidget {
+  final bool canSend;
+  final bool generating;
+  final VoidCallback? onPressed;
+
+  const _CircularSendButton({
+    required this.canSend,
+    required this.generating,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const activeBg = Color(0xFFDDE5ED);
+    final disabledBg = Colors.white.withValues(alpha: 0.08);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: canSend ? activeBg : disabledBg,
+            border: Border.all(
+              color: canSend
+                  ? Colors.white.withValues(alpha: 0.3)
+                  : Colors.white.withValues(alpha: 0.08),
+              width: 1,
+            ),
+            boxShadow: canSend
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFB0C4DE).withValues(alpha: 0.25),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: generating
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF7E8F9F),
+                    ),
+                  )
+                : Icon(
+                    Icons.arrow_upward_rounded,
+                    size: 20,
+                    color: canSend
+                        ? const Color(0xFF121922)
+                        : const Color(0xFF637383),
+                  ),
+          ),
+        ),
       ),
     );
   }
@@ -238,87 +427,196 @@ class _ChatScreenState extends State<ChatScreen> {
 class _StatusPill extends StatelessWidget {
   final String label;
   final bool generating;
-  const _StatusPill({required this.label, required this.generating});
+  final VoidCallback? onTap;
+
+  const _StatusPill({
+    required this.label,
+    required this.generating,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = label == 'Error'
-        ? Colors.redAccent
+    final dotColor = label == 'Error'
+        ? const Color(0xFFE27373)
         : label == 'Ready'
-        ? Colors.greenAccent
-        : Colors.amberAccent;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            generating ? Icons.sync : Icons.circle,
-            color: color,
-            size: generating ? 14 : 8,
+            ? const Color(0xFF6BCA98)
+            : const Color(0xFFDFB668);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
           ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (generating)
+              const Padding(
+                padding: EdgeInsets.only(right: 6),
+                child: SizedBox(
+                  width: 10,
+                  height: 10,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    color: Color(0xFFDFB668),
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: 7,
+                height: 7,
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: dotColor,
+                  boxShadow: [
+                    BoxShadow(
+                      color: dotColor.withValues(alpha: 0.45),
+                      blurRadius: 6,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFFC2CFDB),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
 class _Welcome extends StatelessWidget {
-  final ColorScheme colors;
   final bool ready;
   final VoidCallback onSelectModel;
+
   const _Welcome({
-    required this.colors,
     required this.ready,
     required this.onSelectModel,
   });
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.psychology_alt, size: 64, color: colors.primary),
-          const SizedBox(height: 20),
-          const Text(
-            'Your private AI companion',
-            style: TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            ready
-                ? 'Ask a question to start a completely offline conversation.'
-                : 'Choose a GGUF model stored on your phone to begin.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: colors.onSurfaceVariant),
-          ),
-          if (!ready) ...[
-            const SizedBox(height: 22),
-            FilledButton.icon(
-              onPressed: onSelectModel,
-              icon: const Icon(Icons.folder_open),
-              label: const Text('Select GGUF model'),
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF3B4E63).withValues(alpha: 0.16),
+                    blurRadius: 24,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.auto_awesome,
+                size: 30,
+                color: Color(0xFFA2B6CA),
+              ),
             ),
+            const SizedBox(height: 22),
+            const Text(
+              'Your private AI companion',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE6EDF3),
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              ready
+                  ? 'Ask a question to start a completely offline conversation.'
+                  : 'Choose a GGUF model stored on your phone to begin.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF7E8F9F),
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+            if (!ready) ...[
+              const SizedBox(height: 24),
+              GestureDetector(
+                onTap: onSelectModel,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 11,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF222E3D).withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.folder_open_rounded,
+                        size: 18,
+                        color: Color(0xFFBDCCD9),
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Select GGUF model',
+                        style: TextStyle(
+                          color: Color(0xFFE2EAF1),
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _MessageBubble extends StatelessWidget {
@@ -327,27 +625,44 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Align(
       alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 600),
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        constraints: const BoxConstraints(maxWidth: 580),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: message.isUser ? colors.primary : const Color(0xff202728),
+          color: message.isUser
+              ? const Color(0xFF2A3748).withValues(alpha: 0.85)
+              : const Color(0xFF18222D).withValues(alpha: 0.7),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
             topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(message.isUser ? 18 : 5),
-            bottomRight: Radius.circular(message.isUser ? 5 : 18),
+            bottomLeft: Radius.circular(message.isUser ? 18 : 4),
+            bottomRight: Radius.circular(message.isUser ? 4 : 18),
           ),
+          border: Border.all(
+            color: message.isUser
+                ? Colors.white.withValues(alpha: 0.12)
+                : Colors.white.withValues(alpha: 0.07),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.16),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Text(
           message.text.isEmpty ? '…' : message.text,
           style: TextStyle(
-            color: message.isUser ? colors.onPrimary : colors.onSurface,
-            height: 1.35,
+            color: message.isUser
+                ? const Color(0xFFF0F4F8)
+                : const Color(0xFFD3DDE6),
+            fontSize: 14.5,
+            height: 1.42,
           ),
         ),
       ),
